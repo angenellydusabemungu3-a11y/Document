@@ -370,7 +370,7 @@ class PaiementViewSet(BaseModelViewSet):
     def perform_create(self, serializer):
         profile = self.get_client_profile()
         if profile and self.get_user_role() in CLIENT_ROLES:
-            serializer.save(client=profile)
+            serializer.save(client=profile, user=self.request.user)
             return
 
         validated = getattr(serializer, 'validated_data', {})
@@ -384,9 +384,9 @@ class PaiementViewSet(BaseModelViewSet):
                 client = location.client
 
         if client:
-            serializer.save(client=client)
+            serializer.save(client=client, user=self.request.user)
         else:
-            serializer.save()
+            serializer.save(user=self.request.user)
 
     def perform_update(self, serializer):
         serializer.save(user=self.request.user)

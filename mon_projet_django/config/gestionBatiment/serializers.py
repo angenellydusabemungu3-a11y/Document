@@ -175,15 +175,51 @@ class LocationSerializer(serializers.ModelSerializer):
 
 class PaiementSerializer(serializers.ModelSerializer):
     client_detail = serializers.SerializerMethodField(read_only=True)
+    client = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), required=False)
     mode = serializers.ChoiceField(choices=[('CASH', 'Espèces'), ('CARD', 'Carte bancaire'), ('TRANSFER', 'Virement bancaire')], default='CASH')
-    montant = serializers.FloatField()
+    montant = serializers.DecimalField(max_digits=14, decimal_places=2)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     is_active = serializers.BooleanField(default=True)
     
     class Meta:
         model = Paiement
-        fields = ['id', 'date', 'montant', 'mode', 'location', 'client', 'client_detail', 'contrat', 'statut', 'created_at', 'updated_at', 'is_active']
+        fields = ['id', 'date', 'montant', 'mode', 'mois_paye', 'annee_paye', 'location', 'client', 'client_detail', 'contrat', 'statut', 'created_at', 'updated_at', 'is_active']
+
+    def validate(self, attrs):
+        client = attrs.get('client')
+        contrat = attrs.get('contrat')
+        location = attrs.get('location')
+
+        if not client and not contrat and not location:
+            raise serializers.ValidationError(
+                "Un paiement doit etre lie a un client, un contrat ou une location."
+            )
+
+        if client and contrat and contrat.client_id != client.id:
+            raise serializers.ValidationError({
+                'client': "Le client ne correspond pas au client du contrat."
+            })
+
+        if client and location and location.client_id != client.id:
+            raise serializers.ValidationError({
+                'client': "Le client ne correspond pas au client de la location."
+            })
+
+        return attrs
+
+    def create(self, validated_data):
+        user = validated_data.pop('user', None)
+        paiement = Paiement(**validated_data)
+        paiement.save(user=user)
+        return paiement
+
+    def update(self, instance, validated_data):
+        user = validated_data.pop('user', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save(user=user)
+        return instance
 
     def get_client_detail(self, obj):
         if obj.client:
